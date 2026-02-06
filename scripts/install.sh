@@ -250,8 +250,46 @@ init_database() {
         print_success "Environment file created with secure secret key"
     fi
     
-    # Run database initialization
-    python3 -c "from backend.core.database import init_db; init_db()"
+    # Remove old database if exists (for clean install)
+    if [ -f "$INSTALL_DIR/fileserver.db" ]; then
+        print_warning "Existing database found, removing for fresh install..."
+        rm -f "$INSTALL_DIR/fileserver.db"
+    fi
+    
+    # Create database tables
+    print_info "Creating database tables..."
+    python3 << 'PYEOF'
+from backend.core.database import Base, engine
+from backend.api.models.user import User, Protocol, SharedPath, UserProtocolAccess, AccessLog
+
+try:
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully")
+except Exception as e:
+    print(f"Error creating tables: {e}")
+    exit(1)
+PYEOF
+    
+    if [ $? -ne 0 ]; then
+        print_error "Failed to create database tables"
+        deactivate
+        exit 1
+    fi
+    
+    # Create default admin user
+    print_info "Creating default admin user..."
+    python3 -c "from backend.api.services.user_service import create_default_admin; create_default_admin()" 2>&1 | grep -v "error reading bcrypt version" | grep -v "AttributeError"
+    
+    if [ $? -eq 0 ]; then
+        print_success "Default admin user created (username: admin, password: admin123)"
+        print_warning "⚠️  CHANGE THE DEFAULT PASSWORD IMMEDIATELY!"
+    else
+        print_warning "Admin user creation had warnings but may have succeeded"
+    fi
+    
+    # Initialize default protocols
+    print_info "Initializing default protocols..."
+    python3 -c "from backend.api.services.protocol_service import initialize_protocols; initialize_protocols()" 2>&1 || true
     
     deactivate
     
