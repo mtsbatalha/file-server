@@ -79,12 +79,13 @@ export default function ProtocolsPage() {
     const getStatusBadge = (status: string) => {
         const statusConfig = {
             running: { color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400', icon: CheckCircle2 },
-            installed: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400', icon: CheckCircle2 },
-            not_installed: { color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400', icon: XCircle },
+            stopped: { color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400', icon: CheckCircle2 },
+            installing: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400', icon: RefreshCw },
+            uninstalled: { color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400', icon: XCircle },
             error: { color: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400', icon: XCircle },
         }
 
-        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.not_installed
+        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.uninstalled
         const Icon = config.icon
 
         return (
@@ -160,7 +161,7 @@ export default function ProtocolsPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            {protocol.status === 'not_installed' && (
+                                            {protocol.status === 'uninstalled' && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
@@ -176,7 +177,7 @@ export default function ProtocolsPage() {
                                                 </Button>
                                             )}
 
-                                            {(protocol.status === 'installed' || protocol.status === 'stopped') && (
+                                            {protocol.status === 'stopped' && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
