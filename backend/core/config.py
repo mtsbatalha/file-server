@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     # Admin User (created on first install)
     admin_username: str = "admin"
     admin_password: str = "admin123"  # CHANGE THIS!
-    admin_email: str = "admin@localhost"
+    admin_email: str = "admin@example.com"
     
     # Firewall
     auto_configure_firewall: bool = True
