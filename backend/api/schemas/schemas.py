@@ -156,20 +156,31 @@ class ProtocolResponse(ProtocolBase):
     status: ProtocolStatus
     installed_at: Optional[datetime] = None
     updated_at: datetime
-    
-    # Aliases for frontend compatibility
-    @property
-    def description(self) -> str:
-        """Return display_name as description for frontend"""
-        return self.display_name
-    
-    @property
-    def default_port(self) -> Optional[int]:
-        """Return port as default_port for frontend"""
-        return self.port
+    description: Optional[str] = None  # For frontend compatibility
+    default_port: Optional[int] = None  # For frontend compatibility
     
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        """Custom from_orm to add frontend-compatible fields"""
+        data = {
+            'id': obj.id,
+            'name': obj.name,
+            'display_name': obj.display_name,
+            'port': obj.port,
+            'ssl_enabled': obj.ssl_enabled,
+            'config_json': obj.config_json,
+            'is_enabled': obj.is_enabled,
+            'is_installed': obj.is_installed,
+            'status': obj.status,
+            'installed_at': obj.installed_at,
+            'updated_at': obj.updated_at,
+            'description': obj.display_name,  # Alias for frontend
+            'default_port': obj.port  # Alias for frontend
+        }
+        return cls(**data)
 
 
 class ProtocolStatusResponse(BaseModel):
