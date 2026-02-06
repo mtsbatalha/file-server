@@ -107,7 +107,8 @@ async def install_protocol(
             # Install packages
             if not installer.install_packages():
                 protocol_service.update_protocol_status(
-                    task_db, protocol.id, ProtocolStatus.ERROR
+                    task_db, protocol.id, ProtocolStatus.ERROR,
+                    error_message="Failed to install system packages"
                 )
                 return
             
@@ -115,7 +116,8 @@ async def install_protocol(
             config = protocol.config_json or {}
             if not installer.configure(config):
                 protocol_service.update_protocol_status(
-                    task_db, protocol.id, ProtocolStatus.ERROR
+                    task_db, protocol.id, ProtocolStatus.ERROR,
+                    error_message="Configuration failed"
                 )
                 return
             
@@ -124,20 +126,24 @@ async def install_protocol(
                 protocol_service.update_protocol_status(
                     task_db, protocol.id, ProtocolStatus.RUNNING,
                     is_installed=True,
-                    is_enabled=True
+                    is_enabled=True,
+                    error_message=None # Clear any previous error
                 )
             else:
                 # Installed but failed to start
                 protocol_service.update_protocol_status(
                     task_db, protocol.id, ProtocolStatus.STOPPED,
                     is_installed=True,
-                    is_enabled=False
+                    is_enabled=False,
+                    error_message="Service installed but failed to start"
                 )
             
         except Exception as e:
-            print(f"Installation failed for {protocol_name}: {e}")
+            error_details = str(e)
+            print(f"Installation failed for {protocol_name}: {error_details}")
             protocol_service.update_protocol_status(
-                task_db, protocol.id, ProtocolStatus.ERROR
+                task_db, protocol.id, ProtocolStatus.ERROR,
+                error_message=f"System error: {error_details}"
             )
         finally:
             task_db.close()

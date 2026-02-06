@@ -150,8 +150,13 @@ export default function ProtocolsPage() {
                                     <TableCell className="font-medium">
                                         {protocol.name.toUpperCase()}
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground max-w-xs truncate">
-                                        {protocol.description}
+                                    <TableCell className="text-muted-foreground max-w-xs">
+                                        <div>{protocol.description}</div>
+                                        {protocol.status === 'error' && protocol.error_message && (
+                                            <div className="text-xs text-red-500 mt-1 line-clamp-2" title={protocol.error_message}>
+                                                Error: {protocol.error_message}
+                                            </div>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         {protocol.default_port || 'N/A'}
@@ -161,7 +166,7 @@ export default function ProtocolsPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            {protocol.status === 'uninstalled' && (
+                                            {(protocol.status === 'uninstalled' || protocol.status === 'error') && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"

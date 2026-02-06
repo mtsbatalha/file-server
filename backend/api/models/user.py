@@ -64,6 +64,7 @@ class Protocol(Base):
     ssl_enabled = Column(Boolean, default=False, nullable=False)
     config_json = Column(JSON, nullable=True)  # Protocol-specific configuration
     status = Column(SQLEnum(ProtocolStatus), default=ProtocolStatus.UNINSTALLED, nullable=False)
+    error_message = Column(Text, nullable=True)
     installed_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     

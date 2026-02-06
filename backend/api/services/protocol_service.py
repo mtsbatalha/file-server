@@ -93,7 +93,8 @@ def update_protocol_status(
     protocol_id: str,
     status: ProtocolStatus,
     is_installed: bool = None,
-    is_enabled: bool = None
+    is_enabled: bool = None,
+    error_message: str = None
 ) -> Optional[Protocol]:
     """Update protocol status"""
     protocol = db.query(Protocol).filter(Protocol.id == protocol_id).first()
@@ -106,7 +107,10 @@ def update_protocol_status(
     if is_enabled is not None:
         protocol.is_enabled = is_enabled
     
-    if is_installed and not protocol.installed_at:
+    # Update error message
+    protocol.error_message = error_message
+    
+    if status == ProtocolStatus.RUNNING and is_installed:
         protocol.installed_at = datetime.utcnow()
     
     db.commit()

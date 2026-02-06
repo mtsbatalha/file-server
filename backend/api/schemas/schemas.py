@@ -156,6 +156,7 @@ class ProtocolResponse(ProtocolBase):
     is_enabled: bool
     is_installed: bool
     status: ProtocolStatus
+    error_message: Optional[str] = None
     installed_at: Optional[datetime] = None
     updated_at: datetime
     
