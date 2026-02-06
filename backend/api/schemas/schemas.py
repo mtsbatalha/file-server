@@ -163,8 +163,13 @@ class ProtocolResponse(ProtocolBase):
         from_attributes = True
     
     @classmethod
-    def from_orm(cls, obj):
-        """Custom from_orm to add frontend-compatible fields"""
+    def model_validate(cls, obj: any, *args, **kwargs):
+        """Override model_validate to add frontend-compatible fields"""
+        # If obj is already a dict, use it directly
+        if isinstance(obj, dict):
+            return super().model_validate(obj, *args, **kwargs)
+        
+        # If obj is a database model, convert and add aliases
         data = {
             'id': obj.id,
             'name': obj.name,
@@ -180,7 +185,7 @@ class ProtocolResponse(ProtocolBase):
             'description': obj.display_name,  # Alias for frontend
             'default_port': obj.port  # Alias for frontend
         }
-        return cls(**data)
+        return super().model_validate(data, *args, **kwargs)
 
 
 class ProtocolStatusResponse(BaseModel):

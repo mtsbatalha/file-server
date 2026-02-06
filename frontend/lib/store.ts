@@ -26,21 +26,25 @@ export const useAuthStore = create<AuthState>()(
     persist(
         (set) => ({
             user: null,
-            accessToken: null,
-            refreshToken: null,
-            isAuthenticated: false,
+            accessToken: typeof window !== 'undefined' ? localStorage.getItem('access_token') : null,
+            refreshToken: typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null,
+            isAuthenticated: typeof window !== 'undefined' ? !!localStorage.getItem('access_token') : false,
 
             setTokens: (accessToken, refreshToken) => {
-                localStorage.setItem('access_token', accessToken)
-                localStorage.setItem('refresh_token', refreshToken)
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('access_token', accessToken)
+                    localStorage.setItem('refresh_token', refreshToken)
+                }
                 set({ accessToken, refreshToken, isAuthenticated: true })
             },
 
             setUser: (user) => set({ user }),
 
             logout: () => {
-                localStorage.removeItem('access_token')
-                localStorage.removeItem('refresh_token')
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('access_token')
+                    localStorage.removeItem('refresh_token')
+                }
                 set({
                     user: null,
                     accessToken: null,
@@ -54,6 +58,8 @@ export const useAuthStore = create<AuthState>()(
             partialize: (state) => ({
                 user: state.user,
                 isAuthenticated: state.isAuthenticated,
+                accessToken: state.accessToken,
+                refreshToken: state.refreshToken,
             }),
         }
     )

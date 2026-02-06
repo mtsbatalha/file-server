@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = Field(default="change-this-in-production-use-openssl-rand-hex-32")
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 10080  # 7 days (same as refresh token)
     refresh_token_expire_days: int = 7
     
     # Password hashing
