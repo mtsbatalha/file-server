@@ -156,36 +156,26 @@ class ProtocolResponse(ProtocolBase):
     status: ProtocolStatus
     installed_at: Optional[datetime] = None
     updated_at: datetime
-    description: Optional[str] = None  # For frontend compatibility
-    default_port: Optional[int] = None  # For frontend compatibility
     
     class Config:
         from_attributes = True
     
-    @classmethod
-    def model_validate(cls, obj: any, *args, **kwargs):
-        """Override model_validate to add frontend-compatible fields"""
-        # If obj is already a dict, use it directly
-        if isinstance(obj, dict):
-            return super().model_validate(obj, *args, **kwargs)
-        
-        # If obj is a database model, convert and add aliases
-        data = {
-            'id': obj.id,
-            'name': obj.name,
-            'display_name': obj.display_name,
-            'port': obj.port,
-            'ssl_enabled': obj.ssl_enabled,
-            'config_json': obj.config_json,
-            'is_enabled': obj.is_enabled,
-            'is_installed': obj.is_installed,
-            'status': obj.status,
-            'installed_at': obj.installed_at,
-            'updated_at': obj.updated_at,
-            'description': obj.display_name,  # Alias for frontend
-            'default_port': obj.port  # Alias for frontend
-        }
-        return super().model_validate(data, *args, **kwargs)
+    @property
+    def description(self) -> str:
+        """Alias for display_name"""
+        return self.display_name
+    
+    @property
+    def default_port(self) -> Optional[int]:
+        """Alias for port"""
+        return self.port
+    
+    def model_dump(self, **kwargs):
+        """Override model_dump to include computed fields"""
+        data = super().model_dump(**kwargs)
+        data['description'] = self.display_name
+        data['default_port'] = self.port
+        return data
 
 
 class ProtocolStatusResponse(BaseModel):
