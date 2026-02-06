@@ -391,6 +391,98 @@ start_services() {
     systemctl status fileserver-web --no-pager
 }
 
+# Install protocols
+install_protocols() {
+    echo ""
+    echo -e "${BLUE}╔════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║                                                                    ║${NC}"
+    echo -e "${BLUE}║     📦 PROTOCOL INSTALLATION                                       ║${NC}"
+    echo -e "${BLUE}║                                                                    ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    print_info "Select protocols to install (multiple selection supported):"
+    echo ""
+    echo "Available protocols:"
+    echo "  1) FTP/FTPS    - File Transfer Protocol (port 21)"
+    echo "  2) SFTP        - SSH File Transfer (port 22)"
+    echo "  3) SMB/CIFS    - Windows/Samba shares (port 445)"
+    echo "  4) S3 (MinIO)  - S3-compatible storage (port 9000)"
+    echo "  5) Skip protocol installation"
+    echo ""
+    
+    read -p "Enter protocol numbers separated by spaces (e.g., 1 2 3): " -a SELECTED_PROTOCOLS
+    
+    if [[ " ${SELECTED_PROTOCOLS[@]} " =~ " 5 " ]] || [ ${#SELECTED_PROTOCOLS[@]} -eq 0 ]; then
+        print_info "Skipping protocol installation"
+        print_warning "You can install protocols later via web interface or CLI"
+        return 0
+    fi
+    
+    cd "$INSTALL_DIR"
+    source venv/bin/activate
+    
+    for proto_num in "${SELECTED_PROTOCOLS[@]}"; do
+        case "$proto_num" in
+            1)
+                print_info "Installing FTP/FTPS..."
+                python3 << 'PYEOF'
+from backend.api.services.protocol_service import get_protocol_installer
+installer = get_protocol_installer("ftp")
+try:
+    installer.install()
+    print("✅ FTP installed successfully")
+except Exception as e:
+    print(f"❌ FTP installation failed: {e}")
+PYEOF
+                ;;
+            2)
+                print_info "Installing SFTP..."
+                python3 << 'PYEOF'
+from backend.api.services.protocol_service import get_protocol_installer
+installer = get_protocol_installer("sftp")
+try:
+    installer.install()
+    print("✅ SFTP installed successfully")
+except Exception as e:
+    print(f"❌ SFTP installation failed: {e}")
+PYEOF
+                ;;
+            3)
+                print_info "Installing SMB/CIFS..."
+                python3 << 'PYEOF'
+from backend.api.services.protocol_service import get_protocol_installer
+installer = get_protocol_installer("smb")
+try:
+    installer.install()
+    print("✅ SMB installed successfully")
+except Exception as e:
+    print(f"❌ SMB installation failed: {e}")
+PYEOF
+                ;;
+            4)
+                print_info "Installing S3 (MinIO)..."
+                python3 << 'PYEOF'
+from backend.api.services.protocol_service import get_protocol_installer
+installer = get_protocol_installer("s3")
+try:
+    installer.install()
+    print("✅ S3 (MinIO) installed successfully")
+except Exception as e:
+    print(f"❌ S3 installation failed: {e}")
+PYEOF
+                ;;
+            *)
+                print_warning "Invalid selection: $proto_num (skipping)"
+                ;;
+        esac
+    done
+    
+    deactivate
+    
+    print_success "Protocol installation completed"
+}
+
 # Print completion message
 print_completion() {
     echo ""
@@ -441,6 +533,7 @@ main() {
     create_systemd_services
     configure_firewall
     start_services
+    install_protocols
     print_completion
 }
 
