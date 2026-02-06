@@ -169,8 +169,20 @@ install_application() {
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
     
-    # Copy files
-    cp -r "$PROJECT_DIR"/* "$INSTALL_DIR/"
+    # Get absolute paths for comparison
+    PROJECT_ABS="$(cd "$PROJECT_DIR" && pwd)"
+    INSTALL_ABS="$(cd "$INSTALL_DIR" && pwd)"
+    
+    # Check if source and destination are the same
+    if [ "$PROJECT_ABS" = "$INSTALL_ABS" ]; then
+        print_success "Already in installation directory, skipping file copy"
+        return 0
+    fi
+    
+    # Copy files (exclude .git and node_modules)
+    rsync -av --exclude='.git' --exclude='node_modules' --exclude='frontend/.next' --exclude='venv' \
+        "$PROJECT_DIR/" "$INSTALL_DIR/" 2>/dev/null || \
+        cp -r "$PROJECT_DIR"/* "$INSTALL_DIR/"
     
     print_success "Application files copied"
 }
