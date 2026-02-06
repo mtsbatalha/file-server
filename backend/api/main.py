@@ -12,6 +12,7 @@ import logging
 
 from backend.core.config import get_settings
 from backend.core.database import init_db
+import backend.core.subprocess_patch  # Fix systemctl PATH issues
 
 settings = get_settings()
 
