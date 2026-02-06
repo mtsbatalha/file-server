@@ -148,6 +148,8 @@ class ProtocolUpdate(BaseModel):
     is_enabled: Optional[bool] = None
 
 
+from pydantic import BaseModel, ConfigDict, computed_field
+
 class ProtocolResponse(ProtocolBase):
     """Schema for protocol response"""
     id: str
@@ -157,25 +159,19 @@ class ProtocolResponse(ProtocolBase):
     installed_at: Optional[datetime] = None
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
     
+    @computed_field
     @property
     def description(self) -> str:
-        """Alias for display_name"""
+        """Alias for display_name for frontend compatibility"""
         return self.display_name
     
+    @computed_field
     @property
     def default_port(self) -> Optional[int]:
-        """Alias for port"""
+        """Alias for port for frontend compatibility"""
         return self.port
-    
-    def model_dump(self, **kwargs):
-        """Override model_dump to include computed fields"""
-        data = super().model_dump(**kwargs)
-        data['description'] = self.display_name
-        data['default_port'] = self.port
-        return data
 
 
 class ProtocolStatusResponse(BaseModel):
