@@ -117,11 +117,20 @@ async def install_protocol(
                 )
                 return
             
-            # Mark as installed
-            protocol_service.update_protocol_status(
-                db, protocol.id, ProtocolStatus.STOPPED,
-                is_installed=True
-            )
+            # Start service automatically after installation
+            if installer.start_service():
+                protocol_service.update_protocol_status(
+                    db, protocol.id, ProtocolStatus.RUNNING,
+                    is_installed=True,
+                    is_enabled=True
+                )
+            else:
+                # Installed but failed to start
+                protocol_service.update_protocol_status(
+                    db, protocol.id, ProtocolStatus.STOPPED,
+                    is_installed=True,
+                    is_enabled=False
+                )
             
         except Exception as e:
             print(f"Installation failed for {protocol_name}: {e}")
@@ -248,4 +257,94 @@ async def update_protocol_config(
         db, protocol.id, config, port, ssl_enabled
     )
     
+    # If protocol is installed and running, reconfigure it
+    if protocol.is_installed and protocol.status == ProtocolStatus.RUNNING:
+        try:
+            installer = get_protocol_installer(protocol_name)
+            if not installer.configure(config):
+                raise HTTPException(status_code=500, detail="Failed to apply new configuration")
+            
+            # Restart to apply changes
+            installer.restart_service()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to reconfigure: {str(e)}")
+    
     return updated_protocol
+
+
+@router.post("/{protocol_name}/restart", response_model=MessageResponse)
+async def restart_protocol(
+    protocol_name: str,
+    current_user: User = Depends(get_current_active_admin),
+    db: Session = Depends(get_db)
+):
+    """Restart a protocol service (admin only)"""
+    protocol = protocol_service.get_protocol_by_name(db, protocol_name)
+    if not protocol:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    
+    if not protocol.is_installed:
+        raise HTTPException(status_code=400, detail="Protocol not installed")
+    
+    try:
+        installer = get_protocol_installer(protocol_name)
+        if installer.restart_service():
+            protocol_service.update_protocol_status(
+                db, protocol.id, ProtocolStatus.RUNNING,
+                is_enabled=True
+            )
+            return {"message": f"{protocol.display_name} restarted successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to restart service")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{protocol_name}/uninstall", response_model=MessageResponse)
+async def uninstall_protocol(
+    protocol_name: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_admin),
+    db: Session = Depends(get_db)
+):
+    """Uninstall a protocol (admin only, runs in background)"""
+    protocol = protocol_service.get_protocol_by_name(db, protocol_name)
+    if not protocol:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    
+    if not protocol.is_installed:
+        return {"message": f"{protocol.display_name} is not installed"}
+    
+    # Mark as uninstalling
+    protocol_service.update_protocol_status(
+        db, protocol.id, ProtocolStatus.INSTALLING  # Reusing status for uninstalling
+    )
+    
+    # Run uninstallation in background
+    def uninstall_task():
+        try:
+            installer = get_protocol_installer(protocol_name)
+            
+            # Stop service first
+            installer.stop_service()
+            
+            # Uninstall
+            if installer.uninstall():
+                protocol_service.update_protocol_status(
+                    db, protocol.id, ProtocolStatus.UNINSTALLED,
+                    is_installed=False,
+                    is_enabled=False
+                )
+            else:
+                protocol_service.update_protocol_status(
+                    db, protocol.id, ProtocolStatus.ERROR
+                )
+        except Exception as e:
+            print(f"Uninstallation failed for {protocol_name}: {e}")
+            protocol_service.update_protocol_status(
+                db, protocol.id, ProtocolStatus.ERROR
+            )
+    
+    background_tasks.add_task(uninstall_task)
+    
+    return {"message": f"Uninstallation of {protocol.display_name} started in background"}
