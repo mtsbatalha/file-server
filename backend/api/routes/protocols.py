@@ -90,6 +90,8 @@ async def install_protocol(
     
     # Run installation in background
     def install_task():
+        from backend.core.database import SessionLocal
+        task_db = SessionLocal()
         try:
             installer = get_protocol_installer(protocol_name)
             
@@ -97,7 +99,7 @@ async def install_protocol(
             is_installed, version = installer.detect_existing()
             if is_installed:
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.STOPPED,
+                    task_db, protocol.id, ProtocolStatus.STOPPED,
                     is_installed=True
                 )
                 return
@@ -105,7 +107,7 @@ async def install_protocol(
             # Install packages
             if not installer.install_packages():
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.ERROR
+                    task_db, protocol.id, ProtocolStatus.ERROR
                 )
                 return
             
@@ -113,21 +115,21 @@ async def install_protocol(
             config = protocol.config_json or {}
             if not installer.configure(config):
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.ERROR
+                    task_db, protocol.id, ProtocolStatus.ERROR
                 )
                 return
             
             # Start service automatically after installation
             if installer.start_service():
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.RUNNING,
+                    task_db, protocol.id, ProtocolStatus.RUNNING,
                     is_installed=True,
                     is_enabled=True
                 )
             else:
                 # Installed but failed to start
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.STOPPED,
+                    task_db, protocol.id, ProtocolStatus.STOPPED,
                     is_installed=True,
                     is_enabled=False
                 )
@@ -135,8 +137,10 @@ async def install_protocol(
         except Exception as e:
             print(f"Installation failed for {protocol_name}: {e}")
             protocol_service.update_protocol_status(
-                db, protocol.id, ProtocolStatus.ERROR
+                task_db, protocol.id, ProtocolStatus.ERROR
             )
+        finally:
+            task_db.close()
     
     background_tasks.add_task(install_task)
     
@@ -322,6 +326,8 @@ async def uninstall_protocol(
     
     # Run uninstallation in background
     def uninstall_task():
+        from backend.core.database import SessionLocal
+        task_db = SessionLocal()
         try:
             installer = get_protocol_installer(protocol_name)
             
@@ -331,19 +337,21 @@ async def uninstall_protocol(
             # Uninstall
             if installer.uninstall():
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.UNINSTALLED,
+                    task_db, protocol.id, ProtocolStatus.UNINSTALLED,
                     is_installed=False,
                     is_enabled=False
                 )
             else:
                 protocol_service.update_protocol_status(
-                    db, protocol.id, ProtocolStatus.ERROR
+                    task_db, protocol.id, ProtocolStatus.ERROR
                 )
         except Exception as e:
             print(f"Uninstallation failed for {protocol_name}: {e}")
             protocol_service.update_protocol_status(
-                db, protocol.id, ProtocolStatus.ERROR
+                task_db, protocol.id, ProtocolStatus.ERROR
             )
+        finally:
+            task_db.close()
     
     background_tasks.add_task(uninstall_task)
     

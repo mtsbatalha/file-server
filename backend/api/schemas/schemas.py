@@ -157,6 +157,17 @@ class ProtocolResponse(ProtocolBase):
     installed_at: Optional[datetime] = None
     updated_at: datetime
     
+    # Aliases for frontend compatibility
+    @property
+    def description(self) -> str:
+        """Return display_name as description for frontend"""
+        return self.display_name
+    
+    @property
+    def default_port(self) -> Optional[int]:
+        """Return port as default_port for frontend"""
+        return self.port
+    
     class Config:
         from_attributes = True
 
