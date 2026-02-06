@@ -55,6 +55,20 @@ async def list_protocols(
     return protocols
 
 
+@router.get("/debug/test", response_model=List[dict])
+async def debug_protocols(
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to test protocol serialization"""
+    protocols = protocol_service.get_all_protocols(db)
+    result = []
+    for p in protocols:
+        response = ProtocolResponse.model_validate(p)
+        data = response.model_dump()
+        result.append(data)
+    return result
+
+
 @router.get("/{protocol_name}", response_model=ProtocolResponse)
 async def get_protocol(
     protocol_name: str,
