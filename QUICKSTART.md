@@ -20,7 +20,9 @@ The script will:
 - ✅ Create database and admin user
 - ✅ Configure systemd services
 - ✅ Setup firewall rules
+- ✅ **Prompt for protocol selection (FTP, SFTP, SMB, S3)**
 
+You can select multiple protocols during installation!
 ### Default Credentials
 
 - **Username:** `admin`
