@@ -161,6 +161,16 @@ class ProtocolResponse(ProtocolBase):
     updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def model_validate(cls, obj: any, *args, **kwargs):
+        """Override model_validate to handle missing attributes gracefully"""
+        if not isinstance(obj, dict) and hasattr(obj, '__dict__') or hasattr(obj, '_sa_instance_state'):
+            # It's a SQLAlchemy model or similar object
+            # Ensure error_message exists, if not, set to None
+            if not hasattr(obj, 'error_message'):
+                obj.error_message = None
+        return super().model_validate(obj, *args, **kwargs)
     
     @computed_field
     @property

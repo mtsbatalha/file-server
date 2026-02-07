@@ -100,13 +100,22 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
+    
+    response = JSONResponse(
         status_code=500,
         content={
             "error": "Internal Server Error",
             "detail": str(exc) if settings.debug else "An unexpected error occurred"
         }
     )
+    
+    # Add CORS headers manually to ensure frontend can see the error
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+    return response
 
 
 # Root endpoint
