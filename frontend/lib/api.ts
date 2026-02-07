@@ -118,4 +118,8 @@ export const pathsAPI = {
 // Logs API
 export const logsAPI = {
     getAccessLogs: (params?: any) => api.get('/logs/access', { params }),
+    getStats: (days?: number) => api.get('/logs/access/stats', { params: { days } }),
+    getServiceLogs: (service: string, lines?: number) =>
+        api.get('/logs/services', { params: { service, lines } }),
+    getServicesStatus: () => api.get('/logs/services/status'),
 }
