@@ -210,7 +210,13 @@ class SharedPathBase(BaseModel):
 
 class SharedPathCreate(SharedPathBase):
     """Schema for creating a shared path"""
-    pass
+    user_accesses: Optional[List["UserAccessItem"]] = []
+
+
+class UserAccessItem(BaseModel):
+    """Simple user access item for inclusion in path create/update"""
+    user_id: str
+    permission: PermissionLevel
 
 
 class SharedPathUpdate(BaseModel):
@@ -219,6 +225,14 @@ class SharedPathUpdate(BaseModel):
     path: Optional[str] = None
     description: Optional[str] = None
     protocols: Optional[List[str]] = None
+    user_accesses: Optional[List[UserAccessItem]] = None
+
+
+class UserAccessResponse(BaseModel):
+    """User access info for response"""
+    user_id: str
+    username: str
+    permission: PermissionLevel
 
 
 class SharedPathResponse(SharedPathBase):
@@ -226,6 +240,7 @@ class SharedPathResponse(SharedPathBase):
     id: str
     created_at: datetime
     updated_at: datetime
+    user_accesses: List[UserAccessResponse] = []
     
     class Config:
         from_attributes = True

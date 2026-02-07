@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { pathsAPI, protocolsAPI } from '@/lib/api'
+import { pathsAPI, protocolsAPI, usersAPI } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,8 +23,14 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FolderOpen, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { FolderOpen, Plus, Pencil, Trash2, Loader2, Users, Shield, Eye, Edit2 } from 'lucide-react'
 import { toast } from 'sonner'
+
+interface UserAccess {
+    user_id: string
+    username: string
+    permission: 'read' | 'write' | 'full'
+}
 
 interface SharedPath {
     id: string
@@ -32,6 +38,7 @@ interface SharedPath {
     path: string
     description: string | null
     protocols: string[]
+    user_accesses: UserAccess[]
     created_at: string
     updated_at: string
 }
@@ -40,6 +47,18 @@ interface Protocol {
     name: string
     display_name: string
     status: string
+}
+
+interface User {
+    id: string
+    username: string
+    is_admin: boolean
+}
+
+const permissionLabels: Record<string, { label: string; icon: any; color: string }> = {
+    read: { label: 'Read Only', icon: Eye, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+    write: { label: 'Read & Write', icon: Edit2, color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+    full: { label: 'Full Control', icon: Shield, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
 }
 
 export default function PathsPage() {
@@ -52,7 +71,8 @@ export default function PathsPage() {
         name: '',
         path: '',
         description: '',
-        protocols: [] as string[]
+        protocols: [] as string[],
+        user_accesses: [] as { user_id: string; permission: string }[]
     })
 
     const { data: paths, isLoading } = useQuery({
@@ -68,6 +88,14 @@ export default function PathsPage() {
         queryFn: async () => {
             const res = await protocolsAPI.list()
             return res.data as Protocol[]
+        }
+    })
+
+    const { data: users } = useQuery({
+        queryKey: ['users'],
+        queryFn: async () => {
+            const res = await usersAPI.list()
+            return res.data as User[]
         }
     })
 
@@ -112,7 +140,7 @@ export default function PathsPage() {
     })
 
     const resetForm = () => {
-        setFormData({ name: '', path: '', description: '', protocols: [] })
+        setFormData({ name: '', path: '', description: '', protocols: [], user_accesses: [] })
     }
 
     const openEditDialog = (path: SharedPath) => {
@@ -121,7 +149,11 @@ export default function PathsPage() {
             name: path.name,
             path: path.path,
             description: path.description || '',
-            protocols: path.protocols || []
+            protocols: path.protocols || [],
+            user_accesses: path.user_accesses?.map(ua => ({
+                user_id: ua.user_id,
+                permission: ua.permission
+            })) || []
         })
         setIsEditOpen(true)
     }
@@ -138,6 +170,38 @@ export default function PathsPage() {
                 ? prev.protocols.filter(p => p !== protocolName)
                 : [...prev.protocols, protocolName]
         }))
+    }
+
+    const handleUserPermissionChange = (userId: string, permission: string | null) => {
+        setFormData(prev => {
+            if (permission === null) {
+                // Remove user access
+                return {
+                    ...prev,
+                    user_accesses: prev.user_accesses.filter(ua => ua.user_id !== userId)
+                }
+            }
+
+            const existing = prev.user_accesses.find(ua => ua.user_id === userId)
+            if (existing) {
+                return {
+                    ...prev,
+                    user_accesses: prev.user_accesses.map(ua =>
+                        ua.user_id === userId ? { ...ua, permission } : ua
+                    )
+                }
+            } else {
+                return {
+                    ...prev,
+                    user_accesses: [...prev.user_accesses, { user_id: userId, permission }]
+                }
+            }
+        })
+    }
+
+    const getUserPermission = (userId: string): string | null => {
+        const access = formData.user_accesses.find(ua => ua.user_id === userId)
+        return access?.permission || null
     }
 
     const handleCreate = () => {
@@ -157,6 +221,61 @@ export default function PathsPage() {
     }
 
     const installedProtocols = protocols?.filter(p => p.status !== 'uninstalled') || []
+    const nonAdminUsers = users?.filter(u => !u.is_admin) || []
+
+    const renderUserAccessSection = () => (
+        <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                User Permissions
+            </label>
+            <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                {nonAdminUsers.length > 0 ? nonAdminUsers.map(user => {
+                    const currentPermission = getUserPermission(user.id)
+                    return (
+                        <div key={user.id} className="p-3 flex items-center justify-between">
+                            <span className="text-sm font-medium">{user.username}</span>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={currentPermission === 'read' ? 'default' : 'outline'}
+                                    className="h-7 text-xs"
+                                    onClick={() => handleUserPermissionChange(user.id, currentPermission === 'read' ? null : 'read')}
+                                >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    Read
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={currentPermission === 'write' ? 'default' : 'outline'}
+                                    className="h-7 text-xs"
+                                    onClick={() => handleUserPermissionChange(user.id, currentPermission === 'write' ? null : 'write')}
+                                >
+                                    <Edit2 className="w-3 h-3 mr-1" />
+                                    Write
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={currentPermission === 'full' ? 'default' : 'outline'}
+                                    className="h-7 text-xs"
+                                    onClick={() => handleUserPermissionChange(user.id, currentPermission === 'full' ? null : 'full')}
+                                >
+                                    <Shield className="w-3 h-3 mr-1" />
+                                    Full
+                                </Button>
+                            </div>
+                        </div>
+                    )
+                }) : (
+                    <p className="p-3 text-sm text-muted-foreground">No non-admin users available. Create users first.</p>
+                )}
+            </div>
+            <p className="text-xs text-muted-foreground">Admin users have full access to all paths automatically.</p>
+        </div>
+    )
 
     return (
         <div className="space-y-6">
@@ -164,7 +283,7 @@ export default function PathsPage() {
                 <div>
                     <h1 className="text-3xl font-bold">Shared Paths</h1>
                     <p className="text-muted-foreground mt-1">
-                        Configure shared directories and access permissions
+                        Configure shared directories and user access permissions
                     </p>
                 </div>
                 <Button onClick={() => { resetForm(); setIsCreateOpen(true) }}>
@@ -197,7 +316,7 @@ export default function PathsPage() {
                                     <TableHead>Name</TableHead>
                                     <TableHead>Path</TableHead>
                                     <TableHead>Protocols</TableHead>
-                                    <TableHead>Description</TableHead>
+                                    <TableHead>User Access</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -217,8 +336,19 @@ export default function PathsPage() {
                                                 ))}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground max-w-xs truncate">
-                                            {path.description || '-'}
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                                {path.user_accesses?.length > 0 ? path.user_accesses.map(ua => {
+                                                    const permConfig = permissionLabels[ua.permission] || permissionLabels.read
+                                                    return (
+                                                        <span key={ua.user_id} className={`px-2 py-0.5 rounded text-xs font-medium ${permConfig.color}`}>
+                                                            {ua.username}: {permConfig.label}
+                                                        </span>
+                                                    )
+                                                }) : (
+                                                    <span className="text-xs text-muted-foreground">No users</span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
@@ -255,30 +385,31 @@ export default function PathsPage() {
 
             {/* Create Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent>
+                <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Add Shared Path</DialogTitle>
                         <DialogDescription>
-                            Create a new shared directory accessible via file transfer protocols
+                            Create a new shared directory with user access permissions
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Name</label>
-                            <Input
-                                placeholder="e.g., Public Files"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Path</label>
-                            <Input
-                                placeholder="/opt/file-server/storage/public"
-                                value={formData.path}
-                                onChange={(e) => setFormData({ ...formData, path: e.target.value })}
-                            />
-                            <p className="text-xs text-muted-foreground">Absolute filesystem path. Will be created if it doesn't exist.</p>
+                    <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Name</label>
+                                <Input
+                                    placeholder="e.g., Public Files"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Path</label>
+                                <Input
+                                    placeholder="/opt/file-server/storage/public"
+                                    value={formData.path}
+                                    onChange={(e) => setFormData({ ...formData, path: e.target.value })}
+                                />
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description</label>
@@ -290,7 +421,7 @@ export default function PathsPage() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Protocols</label>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                                 {installedProtocols.length > 0 ? installedProtocols.map(protocol => (
                                     <div key={protocol.name} className="flex items-center space-x-2">
                                         <Checkbox
@@ -303,10 +434,11 @@ export default function PathsPage() {
                                         </label>
                                     </div>
                                 )) : (
-                                    <p className="text-sm text-muted-foreground col-span-2">No protocols installed yet</p>
+                                    <p className="text-sm text-muted-foreground col-span-3">No protocols installed yet</p>
                                 )}
                             </div>
                         </div>
+                        {renderUserAccessSection()}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
@@ -320,27 +452,29 @@ export default function PathsPage() {
 
             {/* Edit Dialog */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                <DialogContent>
+                <DialogContent className="max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Edit Shared Path</DialogTitle>
                         <DialogDescription>
-                            Update the shared path configuration
+                            Update path configuration and user access permissions
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Name</label>
-                            <Input
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Path</label>
-                            <Input
-                                value={formData.path}
-                                onChange={(e) => setFormData({ ...formData, path: e.target.value })}
-                            />
+                    <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Name</label>
+                                <Input
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Path</label>
+                                <Input
+                                    value={formData.path}
+                                    onChange={(e) => setFormData({ ...formData, path: e.target.value })}
+                                />
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description</label>
@@ -351,7 +485,7 @@ export default function PathsPage() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Protocols</label>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-3 gap-2">
                                 {installedProtocols.map(protocol => (
                                     <div key={protocol.name} className="flex items-center space-x-2">
                                         <Checkbox
@@ -366,6 +500,7 @@ export default function PathsPage() {
                                 ))}
                             </div>
                         </div>
+                        {renderUserAccessSection()}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
@@ -385,7 +520,7 @@ export default function PathsPage() {
                         <DialogDescription>
                             Are you sure you want to delete "{selectedPath?.name}"? This action cannot be undone.
                             <br /><br />
-                            <strong>Note:</strong> This only removes the path configuration. The actual directory and files will not be deleted.
+                            <strong>Note:</strong> This only removes the path configuration and user permissions. The actual directory and files will not be deleted.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

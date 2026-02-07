@@ -1,6 +1,6 @@
 """
 Shared Paths Routes
-CRUD operations for managing shared directories
+CRUD operations for managing shared directories with user access control
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,34 +10,89 @@ import os
 
 from backend.core.database import get_db
 from backend.core.security import get_current_active_admin
-from backend.api.models.user import User, SharedPath
+from backend.api.models.user import User, SharedPath, UserProtocolAccess, Protocol
 from backend.api.schemas.schemas import (
     SharedPathCreate,
     SharedPathUpdate,
-    SharedPathResponse,
-    MessageResponse
+    MessageResponse,
+    UserAccessResponse,
+    PermissionLevel
 )
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[SharedPathResponse])
+def get_path_with_accesses(db: Session, path: SharedPath) -> dict:
+    """Build response dict with user accesses"""
+    user_accesses = []
+    for access in path.user_accesses:
+        user_accesses.append({
+            "user_id": access.user_id,
+            "username": access.user.username if access.user else "Unknown",
+            "permission": access.permission.value
+        })
+    
+    return {
+        "id": path.id,
+        "name": path.name,
+        "path": path.path,
+        "description": path.description,
+        "protocols": path.protocols or [],
+        "created_at": path.created_at,
+        "updated_at": path.updated_at,
+        "user_accesses": user_accesses
+    }
+
+
+def sync_user_accesses(db: Session, path: SharedPath, user_accesses: list):
+    """Sync user accesses for a path - remove old and create new"""
+    # Remove existing accesses for this path
+    db.query(UserProtocolAccess).filter(
+        UserProtocolAccess.shared_path_id == path.id
+    ).delete()
+    
+    if not user_accesses:
+        return
+    
+    # Get the first installed protocol (or create a dummy reference)
+    # We need a protocol_id for the UserProtocolAccess model
+    default_protocol = db.query(Protocol).first()
+    if not default_protocol:
+        return
+    
+    # Create new accesses
+    for access_item in user_accesses:
+        user = db.query(User).filter(User.id == access_item.user_id).first()
+        if not user:
+            continue
+        
+        # Create access record
+        new_access = UserProtocolAccess(
+            user_id=access_item.user_id,
+            protocol_id=default_protocol.id,  # Link to default protocol
+            shared_path_id=path.id,
+            permission=access_item.permission
+        )
+        db.add(new_access)
+
+
+@router.get("/")
 async def list_paths(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_admin)
 ):
-    """List all shared paths"""
+    """List all shared paths with user accesses"""
     paths = db.query(SharedPath).order_by(SharedPath.name).all()
-    return paths
+    return [get_path_with_accesses(db, path) for path in paths]
 
 
-@router.post("/", response_model=SharedPathResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_path(
     path_data: SharedPathCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_admin)
 ):
-    """Create a new shared path"""
+    """Create a new shared path with user accesses"""
     # Check if path name already exists
     existing = db.query(SharedPath).filter(SharedPath.name == path_data.name).first()
     if existing:
@@ -80,33 +135,39 @@ async def create_path(
     db.commit()
     db.refresh(db_path)
     
-    return db_path
+    # Save user accesses
+    if path_data.user_accesses:
+        sync_user_accesses(db, db_path, path_data.user_accesses)
+        db.commit()
+        db.refresh(db_path)
+    
+    return get_path_with_accesses(db, db_path)
 
 
-@router.get("/{path_id}", response_model=SharedPathResponse)
+@router.get("/{path_id}")
 async def get_path(
     path_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_admin)
 ):
-    """Get a specific shared path"""
+    """Get a specific shared path with user accesses"""
     path = db.query(SharedPath).filter(SharedPath.id == path_id).first()
     if not path:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shared path not found"
         )
-    return path
+    return get_path_with_accesses(db, path)
 
 
-@router.put("/{path_id}", response_model=SharedPathResponse)
+@router.put("/{path_id}")
 async def update_path(
     path_id: str,
     path_data: SharedPathUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_admin)
 ):
-    """Update a shared path"""
+    """Update a shared path including user accesses"""
     path = db.query(SharedPath).filter(SharedPath.id == path_id).first()
     if not path:
         raise HTTPException(
@@ -142,10 +203,14 @@ async def update_path(
     if path_data.protocols is not None:
         path.protocols = path_data.protocols
     
+    # Update user accesses if provided
+    if path_data.user_accesses is not None:
+        sync_user_accesses(db, path, path_data.user_accesses)
+    
     db.commit()
     db.refresh(path)
     
-    return path
+    return get_path_with_accesses(db, path)
 
 
 @router.delete("/{path_id}", response_model=MessageResponse)
@@ -154,7 +219,7 @@ async def delete_path(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_admin)
 ):
-    """Delete a shared path"""
+    """Delete a shared path (and its user accesses)"""
     path = db.query(SharedPath).filter(SharedPath.id == path_id).first()
     if not path:
         raise HTTPException(
@@ -162,7 +227,8 @@ async def delete_path(
             detail="Shared path not found"
         )
     
+    path_name = path.name
     db.delete(path)
     db.commit()
     
-    return {"message": f"Shared path '{path.name}' deleted successfully"}
+    return {"message": f"Shared path '{path_name}' deleted successfully"}
