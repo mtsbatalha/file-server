@@ -38,8 +38,26 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Initialize database - create all tables"""
+    """Initialize database - create all tables and run auto-migrations"""
+    from sqlalchemy import text, inspect
+    
+    # Create all tables first
     Base.metadata.create_all(bind=engine)
+    
+    # Auto-migration: ensure new columns exist
+    if "sqlite" in settings.database_url:
+        with engine.connect() as conn:
+            # Check if error_message column exists in protocols table
+            result = conn.execute(text("PRAGMA table_info(protocols)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            if "error_message" not in columns:
+                try:
+                    conn.execute(text("ALTER TABLE protocols ADD COLUMN error_message TEXT"))
+                    conn.commit()
+                    print("Auto-migration: Added 'error_message' column to protocols table")
+                except Exception as e:
+                    print(f"Auto-migration warning: {e}")
 
 
 def drop_db() -> None:
