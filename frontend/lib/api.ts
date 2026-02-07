@@ -106,6 +106,15 @@ export const quotasAPI = {
     getSummary: () => api.get('/quotas/summary'),
 }
 
+// Paths API
+export const pathsAPI = {
+    list: () => api.get('/paths'),
+    create: (data: any) => api.post('/paths', data),
+    get: (id: string) => api.get(`/paths/${id}`),
+    update: (id: string, data: any) => api.put(`/paths/${id}`, data),
+    delete: (id: string) => api.delete(`/paths/${id}`),
+}
+
 // Logs API
 export const logsAPI = {
     getAccessLogs: (params?: any) => api.get('/logs/access', { params }),
