@@ -64,7 +64,12 @@ export default function UsersPage() {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
         try {
-            await createMutation.mutateAsync(formData)
+            // Transform empty email to null for Pydantic validation
+            const payload = {
+                ...formData,
+                email: formData.email.trim() || null
+            }
+            await createMutation.mutateAsync(payload)
         } catch (error: any) {
             alert(error.response?.data?.detail || 'Failed to create user')
         }
